@@ -1,0 +1,21 @@
+// C++ code
+//
+void setup()
+{
+  pinMode(2, OUTPUT);  //LED
+  pinMode(A0, OUTPUT); //NPN
+  Serial.begin(9600);
+}
+
+void loop()
+{
+  int a = digitalRead(A0);
+  int b = analogRead(A0);
+  Serial.print(a); Serial.print("   |   ");Serial.println(b);
+  if(a){
+    digitalWrite(2,HIGH);
+  }
+  else{
+    digitalWrite(2,LOW);
+  }
+}
