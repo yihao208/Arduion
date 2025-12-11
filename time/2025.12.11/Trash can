@@ -1,0 +1,88 @@
+#include <Servo.h>
+
+Servo cover; //盖子
+
+const int POWER = 4; //电源开关
+
+const int TRIG_1 = A0, ECHO_1 = A1; //超声波1（盖子）
+
+const int G_LED = 2; 
+
+bool isPowerOn = false; //电源状态
+//电源检测函数
+void checkPower(){
+  int powerState = digitalRead(POWER);
+  if(!isPowerOn && powerState){
+    isPowerOn = true;
+    digitalWrite(G_LED, HIGH);
+  }
+  else if(isPowerOn && !powerState){
+    isPowerOn = false;
+    digitalWrite(G_LED, LOW);
+  }
+}
+
+float dist_1;
+// 超声波测距函数
+float measureDistance(int trig, int echo) {
+  digitalWrite(trig, LOW);
+  delayMicroseconds(8);
+  digitalWrite(trig, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trig, LOW);
+  return pulseIn(echo, HIGH) / 58.0; // 转换为厘米
+}
+
+
+//绿灯闪烁函数
+void greenLED(int time){
+  for(int i=0; i<time; i++){
+    digitalWrite(G_LED, HIGH);
+    delay(100);
+    digitalWrite(G_LED, LOW);
+    delay(100);
+    digitalWrite(G_LED, HIGH);
+  }
+}
+
+
+
+
+//==================功能模块================
+
+//打开垃圾桶盖子
+void openCover(){
+  if(isPowerOn){
+    dist_1 = measureDistance(TRIG_1, ECHO_1);
+    Serial.println(dist_1);
+    if(dist_1 < 25){
+      cover.write(80);
+      greenLED(1);
+    }
+    else{
+      cover.write(0);
+    }
+  }
+}
+
+
+
+
+void setup()
+{
+  pinMode(POWER, INPUT);
+  pinMode(TRIG_1, OUTPUT);
+  pinMode(ECHO_1, INPUT);
+  pinMode(G_LED, OUTPUT);
+  cover.attach(3);  cover.write(0);
+  Serial.begin(9600);
+}
+
+void loop()
+{
+  checkPower();
+  openCover();
+  delay(200);
+}
+
+
