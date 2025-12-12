@@ -1,0 +1,186 @@
+//解决了上一个版本，超声波测距不准的问题，（通过暂时关闭红外的接收功能）
+//但是有一个新问题，就是，红外有可能接收不到，信号丢失
+
+
+#include <Servo.h>
+
+Servo cover; //盖子
+
+
+//========================红外线模块================
+
+#include <IRremote.h>
+
+// 存储红外遥控器识别后的按键编号
+int button = 0;
+
+// 将红外原始编码映射为遥控器按键编号，无效编码返回-1
+int mapCodeToButton(unsigned long code) {
+  if ((code & 0x0000FFFF) == 0x0000BF00) {
+    code >>= 16;
+    if (((code >> 8) ^ (code & 0x00FF)) == 0x00FF) {
+      return code & 0xFF;
+    }
+  }
+  return -1;
+}
+
+// 红外读取函数（保留原逻辑）
+int readInfrared() {
+  int result = -1;
+  if (IrReceiver.decode()) {
+    unsigned long code = IrReceiver.decodedIRData.decodedRawData;
+    result = mapCodeToButton(code);
+    IrReceiver.resume();
+  }
+  return result;
+}
+
+
+//========================电源模块=========================
+
+const int POWER = 4; //电源开关
+const int G_LED = 2; //指示灯
+bool isPowerOn = false; //电源状态
+//电源检测函数
+void checkPower(){
+  int powerState = digitalRead(POWER);
+  if(!isPowerOn && powerState){
+    isPowerOn = true;
+    digitalWrite(G_LED, HIGH);
+  }
+  else if(isPowerOn && !powerState){
+    isPowerOn = false;
+    digitalWrite(G_LED, LOW);
+  }
+}
+
+//绿灯闪烁函数
+void greenLED(int time){
+  for(int i=0; i<time; i++){
+    digitalWrite(G_LED, HIGH);
+    delay(100);
+    digitalWrite(G_LED, LOW);
+    delay(100);
+    digitalWrite(G_LED, HIGH);
+  }
+}
+
+
+//=========================超声波模块=====================
+
+const int TRIG_1 = A0, ECHO_1 = A1; //超声波1（盖子）
+float dist_1;
+// 超声波测距函数
+float measureDistance(int trig, int echo) {
+  //关闭红外
+  IrReceiver.stop();
+  
+  digitalWrite(trig, LOW);
+  delayMicroseconds(8);
+  digitalWrite(trig, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trig, LOW);
+  int dist_temp = pulseIn(echo, HIGH) / 58.0; // 转换为厘米
+  //恢复红外
+  //delayMicroseconds(10);
+  IrReceiver.restartTimer();
+  return dist_temp;
+}
+
+
+
+
+
+
+//==================移动模块===================
+
+const int CAR_VCC = 12;
+const int CAR_GND = 13;
+int isForward = 0;//0-->close,1-->move forward,2-->move back
+
+void move(){
+  button = readInfrared();
+  
+  if(button == 0){
+    isForward = 0;
+    digitalWrite(CAR_VCC, LOW);
+    digitalWrite(CAR_GND, LOW);
+  }
+  else if(button == 8 && isForward != 2){
+    isForward = 2;
+   
+    digitalWrite(CAR_VCC, LOW);
+    digitalWrite(CAR_GND, HIGH);
+  }
+  else if(button == 10 && isForward != 1){
+    isForward = 1;
+   
+    digitalWrite(CAR_VCC, HIGH);
+    digitalWrite(CAR_GND, LOW);
+  }
+  
+}
+
+
+//==================功能模块======================
+
+//打开垃圾桶盖子
+void openCover(){
+  dist_1 = measureDistance(TRIG_1, ECHO_1);
+  //Serial.println(dist_1);
+  if(dist_1 < 25){
+    cover.write(80);
+    greenLED(1);
+  }
+  else{
+    cover.write(0);
+  }
+}
+
+
+
+
+//关机函数
+void closeAll(){
+  cover.write(0);
+  digitalWrite(CAR_VCC, LOW);
+  digitalWrite(CAR_GND, LOW);
+}
+
+
+void setup()
+{
+  pinMode(POWER, INPUT);
+  pinMode(TRIG_1, OUTPUT);
+  pinMode(ECHO_1, INPUT);
+  pinMode(G_LED, OUTPUT);
+  cover.attach(3);  cover.write(0);
+  IrReceiver.begin(7);          // 红外接收器接数字引脚7
+  pinMode(CAR_VCC, OUTPUT);
+  pinMode(CAR_GND, OUTPUT);
+  Serial.begin(9600);
+}
+
+void loop()
+{
+  checkPower();
+  if(isPowerOn){
+    openCover();
+    move();
+    
+  }
+  else{
+    closeAll();
+  }
+  delay(200);
+}
+
+
+
+
+
+
+
+
+
